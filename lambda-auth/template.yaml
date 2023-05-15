@@ -2,19 +2,29 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
   lambda-auth
-
-  Sample SAM Template for lambda-auth
+  SAM Template for lambda-auth
 
 Globals:
   Function:
-    Timeout: 3
+    Timeout: 500
+    MemorySize: 128
+    Runtime: nodejs14.x
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        REGION_NAME: !Ref Region
+Parameters:
+  Region:
+    Type: String
+    Default: ap-south-1
 
 Resources:
-  HelloWorldFunction:
+  LambdaAuthFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: hello-world/
-      Handler: app.lambdaHandler
+      CodeUri: handler/
+      Handler: app.lambdaAuth
       Runtime: nodejs14.x
       Architectures:
         - x86_64
@@ -22,16 +32,71 @@ Resources:
         HelloWorld:
           Type: Api
           Properties:
-            Path: /hello
+            Path: /auth
             Method: get
 
+  LambdaAuthUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: LambdaAuthUserPool
+      UsernameAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+      Schema:
+        - AttributeDataType: String
+          Name: email
+          Required: false
+
+  LambdaAuthUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref LambdaAuthUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+
+  LambdaAuthCognitoAuthApi:
+    DependsOn: LambdaAuthUserPool
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: LambdaAuthCognitoAuthApi
+      StageName: Prod
+      Cors: "'*'"
+      Auth:
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt "LambdaAuthUserPool.Arn"
+
+  LambdaAuthCognitoLoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: handler/
+      Handler: app.logInUser
+      Runtime: nodejs14.x
+      Events:
+        Root:
+          Type: Api
+          Properties:
+            Path: /login
+            Method: POST
+
+  LambdaAuthCognitoSignUpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: handler/
+      Handler: app.signUpUser
+      Runtime: nodejs14.x
+      Events:
+        Root:
+          Type: Api
+          Properties:
+            Path: /signup
+            Method: POST
+
 Outputs:
-  HelloWorldApi:
-    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
-  HelloWorldFunction:
-    Description: "Hello World Lambda Function ARN"
-    Value: !GetAtt HelloWorldFunction.Arn
-  HelloWorldFunctionIamRole:
-    Description: "Implicit IAM Role created for Hello World function"
-    Value: !GetAtt HelloWorldFunctionRole.Arn
+  LambdaAuthorizerApi:
+    Description: "API Gateway endpoint URL for Prod stage for LambdaAuthorizer function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/lambda-authorizer/"
