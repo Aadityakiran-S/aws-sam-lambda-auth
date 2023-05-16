@@ -20,21 +20,6 @@ Parameters:
     Default: ap-south-1
 
 Resources:
-  LambdaAuthFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: handler/
-      Handler: app.lambdaAuth
-      Runtime: nodejs14.x
-      Architectures:
-        - x86_64
-      Events:
-        HelloWorld:
-          Type: Api
-          Properties:
-            Path: /auth
-            Method: get
-
   LambdaAuthUserPool:
     Type: AWS::Cognito::UserPool
     Properties:
@@ -69,6 +54,22 @@ Resources:
         Authorizers:
           CognitoAuthorizer:
             UserPoolArn: !GetAtt "LambdaAuthUserPool.Arn"
+
+  LambdaAuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: handler/
+      Handler: app.lambdaAuth
+      Runtime: nodejs14.x
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /auth
+            Method: get
+            RestApiId: !Ref LambdaAuthCognitoAuthApi
+            Auth:
+              AuthorizationType: COGNITO_USER_POOLS
 
   LambdaAuthCognitoLoginFunction:
     Type: AWS::Serverless::Function
